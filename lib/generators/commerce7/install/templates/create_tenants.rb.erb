@@ -1,0 +1,17 @@
+class CreateTenants < ActiveRecord::Migration[<%= ActiveRecord::Migration.current_version %>]
+  def change
+    create_table :tenants do |t|
+      t.string :commerce7_tenant_id, null: false
+      t.datetime :activated_at
+      t.datetime :deactivated_at
+      # PII (installing staff member's name/email, per Commerce7's
+      # activation docs) — add `encrypts :raw_activation_payload` on the
+      # Tenant model.
+      t.jsonb :raw_activation_payload, default: {}, null: false
+
+      t.timestamps
+    end
+
+    add_index :tenants, :commerce7_tenant_id, unique: true
+  end
+end
