@@ -29,11 +29,21 @@ Commerce7.configure do |c|
   # -> { [username, password] } — the Basic Auth pair you configured in
   # Commerce7's Developer Center for the Install/Uninstall URLs and the
   # app-level Web Hook.
-  c.webhook_credentials = -> { Rails.application.credentials.dig(:commerce7, :webhook_username, :webhook_password) }
+  c.webhook_credentials = -> {
+    [
+      Rails.application.credentials.dig(:commerce7, :webhook_username),
+      Rails.application.credentials.dig(:commerce7, :webhook_password)
+    ]
+  }
 
   # -> { [app_id, app_secret_key] } — the single app-wide Commerce7 API
   # credential pair (not per-tenant).
-  c.app_credentials = -> { Rails.application.credentials.dig(:commerce7, :app_id, :app_secret_key) }
+  c.app_credentials = -> {
+    [
+      Rails.application.credentials.dig(:commerce7, :app_id),
+      Rails.application.credentials.dig(:commerce7, :app_secret_key)
+    ]
+  }
 
   # ->(event_type:, success:, **kwargs) { ... } — point this at your own
   # audit-log write path so Commerce7-driven events land in the same trail

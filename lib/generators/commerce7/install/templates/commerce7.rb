@@ -1,8 +1,18 @@
 Commerce7.configure do |c|
   c.tenant_class_name = "Tenant"
 
-  c.webhook_credentials = -> { Rails.application.credentials.dig(:commerce7, :webhook_username, :webhook_password) }
-  c.app_credentials = -> { Rails.application.credentials.dig(:commerce7, :app_id, :app_secret_key) }
+  c.webhook_credentials = -> {
+    [
+      Rails.application.credentials.dig(:commerce7, :webhook_username),
+      Rails.application.credentials.dig(:commerce7, :webhook_password)
+    ]
+  }
+  c.app_credentials = -> {
+    [
+      Rails.application.credentials.dig(:commerce7, :app_id),
+      Rails.application.credentials.dig(:commerce7, :app_secret_key)
+    ]
+  }
 
   # Point this at your app's own audit-log write path so Commerce7-driven
   # events (server auth, activation/deactivation, staff extension auth,
