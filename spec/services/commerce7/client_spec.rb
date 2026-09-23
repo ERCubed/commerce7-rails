@@ -31,6 +31,26 @@ RSpec.describe Commerce7::Client do
     include_examples "a Commerce7 paginated resource", method: :each_order, path: "/order", response_key: "orders"
   end
 
+  describe "#each_order with filters" do
+    it "passes params through as query filters alongside pagination" do
+      stub = stub_request(:get, "https://api.commerce7.com/v1/order")
+        .with(query: { "orderPaidDate" => "gte:2026-01-01", "page" => "1", "limit" => Commerce7::Client::PAGE_SIZE.to_s })
+        .to_return(status: 200, body: { "orders" => [] }.to_json, headers: json_headers)
+
+      client.each_order(orderPaidDate: "gte:2026-01-01") { |record| record }
+
+      expect(stub).to have_been_requested
+    end
+  end
+
+  describe "#each_product" do
+    include_examples "a Commerce7 paginated resource", method: :each_product, path: "/product", response_key: "products"
+  end
+
+  describe "#each_inventory_location" do
+    include_examples "a Commerce7 paginated resource", method: :each_inventory_location, path: "/inventory-location", response_key: "inventoryLocations"
+  end
+
   describe "#fetch_order" do
     it "returns the order hash" do
       stub_request(:get, "https://api.commerce7.com/v1/order/order-1")

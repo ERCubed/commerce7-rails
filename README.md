@@ -8,7 +8,7 @@ This gem owns the Commerce7-protocol plumbing. Your app owns the business logic:
 
 ```ruby
 # Gemfile
-gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.1.0"
+gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.0"
 ```
 
 ```
@@ -136,6 +136,9 @@ client = Commerce7::Client.new(tenant)
 client.each_club_membership { |membership| ... }  # paginates automatically
 client.each_customer { |customer| ... }
 client.each_order { |order| ... }
+client.each_order(orderPaidDate: "gte:2026-01-01") { |order| ... }  # params pass through as filters
+client.each_product { |product| ... }              # variants + per-location inventory inline
+client.each_inventory_location { |location| ... }
 client.fetch_order(order_id)
 ```
 

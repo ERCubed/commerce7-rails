@@ -39,7 +39,10 @@ module Commerce7
       tenant = Commerce7.configuration.tenant_class.active.find_by(commerce7_tenant_id: tenant_id)
       unless tenant
         audit_auth!(success: false, tenant_id: tenant_id, reason: "unknown_or_deactivated_tenant")
-        return head :forbidden
+        # Same real error page as a rejected staff token (see below), not a
+        # bare status code — an uninstalled-then-still-open tab is the
+        # common way staff land here.
+        return render "commerce7/extension/unauthorized", status: :forbidden
       end
 
       Current.staff_user = Commerce7::AccountClient.new.fetch_user(tenant_id: tenant_id, token: params.require(:account))

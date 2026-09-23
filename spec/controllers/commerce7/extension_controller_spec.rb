@@ -42,6 +42,7 @@ RSpec.describe Commerce7::ExtensionController, type: :controller do
     get :index, params: { tenantId: "unknown-winery", account: "jwt-token" }
 
     expect(response).to have_http_status(:forbidden)
+    expect(response.body).to include("Unauthorized")
     expect(AuditEvent.last).to have_attributes(event_type: "staff_extension_auth", success: false, commerce7_tenant_id: "unknown-winery")
   end
 
