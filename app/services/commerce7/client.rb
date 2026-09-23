@@ -46,10 +46,29 @@ module Commerce7
       each_record("club-membership", "clubMemberships", &block)
     end
 
-    def each_order(&block)
-      return enum_for(:each_order) unless block_given?
+    # `params` pass straight through as Commerce7 query filters (e.g.
+    # `orderPaidDate: "gte:2026-01-01"`), so a caller can bound a listing
+    # instead of paging through a tenant's entire order history.
+    def each_order(params = {}, &block)
+      return enum_for(:each_order, params) unless block_given?
 
-      each_record("order", "orders", &block)
+      each_record("order", "orders", params, &block)
+    end
+
+    # Products carry their variants inline, and each variant carries its
+    # per-location inventory counts (variants[].inventory[], keyed by
+    # inventoryLocationId) plus the winery's custom fields (metaData) —
+    # enough for a full inventory snapshot without a separate call per SKU.
+    def each_product(params = {}, &block)
+      return enum_for(:each_product, params) unless block_given?
+
+      each_record("product", "products", params, &block)
+    end
+
+    def each_inventory_location(params = {}, &block)
+      return enum_for(:each_inventory_location, params) unless block_given?
+
+      each_record("inventory-location", "inventoryLocations", params, &block)
     end
 
     # Single-order lookup (as opposed to each_order's bulk listing) — some
@@ -64,11 +83,11 @@ module Commerce7
 
     attr_reader :tenant, :base_url, :sleeper
 
-    def each_record(path, response_key)
+    def each_record(path, response_key, params = {})
       page = 1
 
       loop do
-        records = get(path, page: page, limit: PAGE_SIZE)[response_key] || []
+        records = get(path, params.merge(page: page, limit: PAGE_SIZE))[response_key] || []
         records.each { |record| yield record }
 
         break if records.size < PAGE_SIZE
