@@ -8,7 +8,7 @@ This gem owns the Commerce7-protocol plumbing. Your app owns the business logic:
 
 ```ruby
 # Gemfile
-gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.0"
+gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.1"
 ```
 
 ```

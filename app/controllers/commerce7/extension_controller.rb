@@ -18,15 +18,19 @@ module Commerce7
     # a cross-site iframe POST where the session cookie may not travel).
     protect_from_forgery with: :exception
 
-    before_action :authenticate_staff!
-
     # Rails sends X-Frame-Options: SAMEORIGIN by default, which blocks
     # Commerce7's admin panel (a different origin) from framing this page at
     # all. Commerce7 doesn't publish a stable admin origin to scope a
     # replacement CSP frame-ancestors to, so this just drops the blanket
     # deny; a host app that wants a tighter CSP can add its own
     # frame-ancestors directive once that origin is confirmed.
-    after_action { response.headers.delete("X-Frame-Options") }
+    #
+    # A before_action, declared ahead of authenticate_staff!, rather than an
+    # after_action: when auth fails, authenticate_staff! renders the error
+    # page and halts the chain, and after_actions never run — which left
+    # exactly the page staff most need to see blocked inside the iframe.
+    before_action { response.headers.delete("X-Frame-Options") }
+    before_action :authenticate_staff!
 
     rescue_from ActionController::ParameterMissing do |error|
       render plain: error.message, status: :bad_request
