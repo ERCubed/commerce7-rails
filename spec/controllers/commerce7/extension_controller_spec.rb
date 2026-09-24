@@ -29,6 +29,35 @@ RSpec.describe Commerce7::ExtensionController, type: :controller do
     expect(AuditEvent.last).to have_attributes(event_type: "staff_extension_auth", success: true, actor: "jason@example.com", commerce7_tenant_id: "winery-1")
   end
 
+  # The error pages matter most here: they're what staff see inside the
+  # Commerce7 iframe when auth fails, and a before_action that renders halts
+  # the chain before any after_action could strip the header.
+  describe "framing on error pages" do
+    it "lets Commerce7 frame the unknown-tenant page" do
+      get :index, params: { tenantId: "unknown-winery", account: "jwt-token" }
+
+      expect(response).to have_http_status(:forbidden)
+      expect(response.headers["X-Frame-Options"]).to be_nil
+    end
+
+    it "lets Commerce7 frame the rejected-token page" do
+      stub_request(:get, "https://api.commerce7.com/v1/account/user")
+        .to_return(status: 401, body: { "statusCode" => 401 }.to_json, headers: json_headers)
+
+      get :index, params: { tenantId: "winery-1", account: "bad-token" }
+
+      expect(response).to have_http_status(:unauthorized)
+      expect(response.headers["X-Frame-Options"]).to be_nil
+    end
+
+    it "lets Commerce7 frame the missing-params response" do
+      get :index, params: { tenantId: "winery-1" }
+
+      expect(response).to have_http_status(:bad_request)
+      expect(response.headers["X-Frame-Options"]).to be_nil
+    end
+  end
+
   it "drops the default X-Frame-Options so Commerce7 can embed the page" do
     stub_request(:get, "https://api.commerce7.com/v1/account/user")
       .to_return(status: 200, body: user_payload.to_json, headers: json_headers)
