@@ -26,5 +26,7 @@ Gem::Specification.new do |s|
   s.require_paths = [ "lib" ]
 
   s.add_dependency "rails", ">= 7.1"
-  s.add_dependency "faraday", ">= 2.0"
+  # 2.14.3 and earlier call JSON.parse the way json 3.0 no longer accepts,
+  # so every JSON response raises. See "Requirements" in the README.
+  s.add_dependency "faraday", ">= 2.14.4"
 end

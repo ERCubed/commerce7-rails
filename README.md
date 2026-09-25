@@ -4,11 +4,20 @@ Rails building blocks for building a [Commerce7](https://www.commerce7.com/) App
 
 This gem owns the Commerce7-protocol plumbing. Your app owns the business logic: your tenant model's own fields, what a webhook handler actually does, what your App Extension pages render.
 
+## Requirements
+
+- Rails 7.1 or later
+- Faraday 2.14.4 or later
+
+**Why the Faraday floor is 2.14.4 (since v0.2.2):** `json` 3.0 changed the signature of `JSON.parse`. Faraday 2.14.3 and earlier still call it the old way in their JSON response middleware, so with `json` 3 installed, every response from the Commerce7 REST client raises `Faraday::ParsingError: wrong number of arguments (given 2, expected 1)`. Nothing in your app has to request `json` 3 for this to happen: it arrives as a transitive dependency (rubocop 1.91, for one). Before v0.2.2 the gem allowed any Faraday 2.x, so an app could resolve to a combination that broke at runtime. Raising the floor rules that out.
+
+The same `json` 3 change also breaks ActiveSupport's JSON decoding (every `json`/`jsonb` column read) on Rails 8.1.3.x. Rails 8.1.4 fixes it, so if your app is on the 8.1 line, use 8.1.4 or later before letting `json` move to 3.x.
+
 ## Install
 
 ```ruby
 # Gemfile
-gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.1"
+gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.2"
 ```
 
 ```
