@@ -25,6 +25,9 @@ Gem::Specification.new do |s|
   end
   s.require_paths = [ "lib" ]
 
-  s.add_dependency "rails", ">= 7.1"
-  s.add_dependency "faraday", ">= 2.0"
+  # json 3.0 changed JSON.parse, and ActiveSupport before 8.1.4 (other than
+  # 7.2) and Faraday before 2.14.4 call it in ways it no longer accepts, so
+  # jsonb reads and REST client responses raise. See "Requirements" in the README.
+  s.add_dependency "rails", ">= 8.1.4"
+  s.add_dependency "faraday", ">= 2.14.4"
 end
