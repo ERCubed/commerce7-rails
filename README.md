@@ -6,18 +6,32 @@ This gem owns the Commerce7-protocol plumbing. Your app owns the business logic:
 
 ## Requirements
 
-- Rails 7.1 or later
+- Rails 8.1.4 or later
 - Faraday 2.14.4 or later
 
-**Why the Faraday floor is 2.14.4 (since v0.2.2):** `json` 3.0 changed the signature of `JSON.parse`. Faraday 2.14.3 and earlier still call it the old way in their JSON response middleware, so with `json` 3 installed, every response from the Commerce7 REST client raises `Faraday::ParsingError: wrong number of arguments (given 2, expected 1)`. Nothing in your app has to request `json` 3 for this to happen: it arrives as a transitive dependency (rubocop 1.91, for one). Before v0.2.2 the gem allowed any Faraday 2.x, so an app could resolve to a combination that broke at runtime. Raising the floor rules that out.
+Both floors date from v0.3.0. Earlier versions allowed Rails 7.1+ and any Faraday 2.x.
 
-The same `json` 3 change also breaks ActiveSupport's JSON decoding (every `json`/`jsonb` column read) on Rails 8.1.3.x. Rails 8.1.4 fixes it, so if your app is on the 8.1 line, use 8.1.4 or later before letting `json` move to 3.x.
+**Why:** `json` 3.0 changed the signature of `JSON.parse`, and older Rails and Faraday releases call it in ways it no longer accepts. Nothing in your app has to request `json` 3 for this to happen. It arrives as a transitive dependency (rubocop 1.91 pulls it in, for one), and neither Rails nor Faraday caps `json` below 3, so Bundler will happily resolve a combination that breaks at runtime. The floors rule those combinations out.
+
+- **Faraday 2.14.3 and earlier:** the JSON response middleware breaks, so every Commerce7 REST client response raises `Faraday::ParsingError: wrong number of arguments (given 2, expected 1)`.
+- **Rails before 8.1.4:** `ActiveSupport::JSON.decode` breaks, so every `json`/`jsonb` column read raises. That includes the `raw_activation_payload` column the install generator creates. How it fails depends on the Rails line:
+
+  | Rails | With `json` 3 |
+  |---|---|
+  | 7.1.x, 8.0.x | `ArgumentError: unknown keyword: quirks_mode` |
+  | 7.2.x | JSON decoding works |
+  | 8.1.0 to 8.1.3.x | `ArgumentError: wrong number of arguments (given 2, expected 1)` |
+  | 8.1.4 and later | Works |
+
+  A gemspec can't say "7.2.x or 8.1.4 and later", so the floor is 8.1.4.
+
+If you're stuck on an older Rails, stay on v0.2.1 and pin `json` below 3 in your app's Gemfile (`gem "json", "~> 2.21"`).
 
 ## Install
 
 ```ruby
 # Gemfile
-gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.2.2"
+gem "commerce7-rails", github: "ERCubed/commerce7-rails", tag: "v0.3.0"
 ```
 
 ```
