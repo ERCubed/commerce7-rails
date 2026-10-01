@@ -1,0 +1,61 @@
+name: Release
+
+# Publishes the gem to rubygems.org via trusted publishing (OIDC). No API key
+# is stored anywhere; rubygems.org trusts this workflow + the "release"
+# environment for ERCubed/commerce7-rails.
+#
+# - Pushing a vX.Y.Z tag publishes that tag.
+# - "Run workflow" with a tag publishes an existing tag (e.g. one created
+#   before this workflow existed). The tag's own files are built, so it
+#   doesn't need to contain this workflow.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish (e.g. v0.3.0)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+
+      - name: Run specs
+        run: bundle exec rspec
+
+      - name: Check the tag matches the gem version
+        run: |
+          version=$(ruby -e 'puts Gem::Specification.load("commerce7-rails.gemspec").version')
+          if [ "v${version}" != "${TAG}" ]; then
+            echo "::error::Tag ${TAG} does not match gem version ${version}"
+            exit 1
+          fi
+
+      - name: Build gem
+        run: gem build commerce7-rails.gemspec
+
+      - uses: rubygems/configure-rubygems-credentials@v2.1.0
+
+      - name: Push to rubygems.org
+        run: gem push commerce7-rails-*.gem
