@@ -182,6 +182,34 @@ RSpec.describe Commerce7::Client do
     end
   end
 
+  describe "allowed_resources" do
+    after { Commerce7.configuration.allowed_resources = nil }
+
+    it "sends requests for a listed resource, including sub-paths" do
+      Commerce7.configuration.allowed_resources = %w[customer]
+      stub_request(:get, "https://api.commerce7.com/v1/customer/cust-1/address")
+        .to_return(status: 200, body: { "addresses" => [] }.to_json, headers: json_headers)
+
+      expect(client.get("customer/cust-1/address")).to eq({ "addresses" => [] })
+    end
+
+    it "refuses an unlisted resource before sending anything, through every entry point" do
+      Commerce7.configuration.allowed_resources = %w[order]
+
+      expect { client.get("customer") }.to raise_error(Commerce7::Client::InvalidRequestError, /"customer" is not in .*allowed_resources \(order\)/)
+      expect { client.each("customer").first }.to raise_error(Commerce7::Client::InvalidRequestError)
+      expect { client.fetch("customer", "cust-1") }.to raise_error(Commerce7::Client::InvalidRequestError)
+      expect { client.each_customer.first }.to raise_error(Commerce7::Client::InvalidRequestError)
+      expect(a_request(:any, /.*/)).not_to have_been_made
+    end
+
+    it "is a Client::Error, so a caller that rescues those treats it as a failed call" do
+      Commerce7.configuration.allowed_resources = []
+
+      expect { client.fetch_order("order-1") }.to raise_error(Commerce7::Client::Error)
+    end
+  end
+
   describe "authentication" do
     it "sends HTTP Basic auth (from app_credentials) and the tenant header" do
       stub = stub_request(:get, "https://api.commerce7.com/v1/customer")

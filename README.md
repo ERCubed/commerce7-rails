@@ -92,6 +92,19 @@ class Current < ActiveSupport::CurrentAttributes
 end
 ```
 
+### Limiting which resources the client can read
+
+Set `allowed_resources` to the Commerce7 resources your app reads. `Commerce7::Client` then refuses any other resource before sending a request, through the generic methods and the named helpers alike:
+
+```ruby
+Commerce7.configure do |c|
+  # ...
+  c.allowed_resources = %w[club-membership order customer]
+end
+```
+
+A resource is the first segment of an API path (`order` in `order/123`), so sub-paths of a listed resource are allowed. Keep the list matching the scopes registered for your app in Commerce7's Developer Center: Commerce7 enforces those scopes too, and this list is the app's own declaration of them, in code. Left unset (`nil`), every resource is allowed. The install generator starts new apps at `[]`, so each resource is added deliberately. Entries are checked when set, so a typo fails at boot.
+
 ## Routes
 
 This gem mounts nothing — you declare routes exactly as you would for any in-app controller, just pointing at the gem's classes, so the URLs already registered in Commerce7's Developer Center (Install/Uninstall URLs, an App Extension's iframe src) stay stable and under your control:
@@ -172,7 +185,7 @@ client.get("customer/#{customer_id}/address")                  # any other GET, 
 
 `each` reads records from the response key Commerce7 names after the resource: the path's last segment, pluralized and camelCased (`"club-membership"` reads `clubMemberships`). If an endpoint uses a different key, pass `key: "theKey"`. A response without the expected key raises `ApiError` rather than quietly yielding nothing. Filters can be keywords or a hash; `key` is reserved for this method, so pass a filter literally named `key` in the hash.
 
-Paths must be relative (`"customer"`, `"order/123"`): segments of letters, digits, `-` and `_`. Anything else (a full URL, `..`, percent-encoding) raises `Commerce7::Client::InvalidRequestError` before a request is made, because a full URL would otherwise make Faraday send the request, App ID and Secret included, to that host. `fetch` applies the same rule to the id, which often comes from a URL param or webhook. `InvalidRequestError` is a `Client::Error`, so code that already rescues those treats a tampered id like any failed lookup.
+Paths must be relative (`"customer"`, `"order/123"`): segments of letters, digits, `-` and `_`. Anything else (a full URL, `..`, percent-encoding) raises `Commerce7::Client::InvalidRequestError` before a request is made, because a full URL would otherwise make Faraday send the request, App ID and Secret included, to that host. `fetch` applies the same rule to the id, which often comes from a URL param or webhook. `InvalidRequestError` is a `Client::Error`, so code that already rescues those treats a tampered id like any failed lookup. A resource outside `allowed_resources` (see [Configure](#limiting-which-resources-the-client-can-read)) raises it too.
 
 ### Named helpers
 
@@ -203,6 +216,7 @@ This gem exists so every app built on it starts from a "Yes" on Commerce7's App 
 - **Server-to-server auth**: `Commerce7::BaseController` requires HTTP Basic Auth (your `webhook_credentials`) on every activation/deactivation/webhook POST, and audits both successful and failed attempts.
 - **App Extension auth**: `Commerce7::ExtensionController` validates the staff JWT Commerce7 passes into every iframe load against Commerce7's own `/account/user` endpoint — a real error page on failure, never a bare status code.
 - **PII**: `raw_activation_payload` (the installing staff member's name/email) is your model's column to encrypt — see Install above.
+- **Least-privilege API access**: the client is read only (no POST/PUT/DELETE), refuses any resource outside `allowed_resources`, and rejects anything but a plain relative path or id before sending, so a tampered id or a full URL can never send your App ID and Secret anywhere but Commerce7.
 - **Data deletion**: built in — soft-deactivate on uninstall, hard-delete after 30 days (`Commerce7::PurgeDeactivatedTenantsJob`).
 - **Webhook auth + idempotency**: Basic Auth on every delivery; handlers are expected to be idempotent by construction, since Commerce7 exposes no delivery id to dedupe against.
 - **Audit trail**: every security-relevant event (server auth success/failure, activation/deactivation, staff extension auth, webhook-driven dispatch, the post-uninstall purge) flows through your configured `audit` hook — user identity, event type, timestamp, success/failure, and origin.

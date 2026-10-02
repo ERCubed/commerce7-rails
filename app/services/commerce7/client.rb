@@ -127,6 +127,10 @@ module Commerce7
     def get(path, params = {})
       path = path.to_s # validate and send the same string
       raise InvalidRequestError, "Commerce7 API path must be relative, like \"customer\" or \"order/123\", got #{path.inspect}" unless path.match?(PATH_FORMAT)
+      resource = path.split("/").first
+      unless Commerce7.configuration.resource_allowed?(resource)
+        raise InvalidRequestError, "Commerce7 resource #{resource.inspect} is not in Commerce7.configuration.allowed_resources (#{Commerce7.configuration.allowed_resources.join(', ')})"
+      end
 
       response = with_rate_limit_retry { connection.get(path, params) }
       handle_response(response)
