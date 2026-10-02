@@ -172,7 +172,7 @@ client.get("customer/#{customer_id}/address")                  # any other GET, 
 
 `each` reads records from the response key Commerce7 names after the resource: the path's last segment, pluralized and camelCased (`"club-membership"` reads `clubMemberships`). If an endpoint uses a different key, pass `key: "theKey"`. A response without the expected key raises `ApiError` rather than quietly yielding nothing. Filters can be keywords or a hash; `key` is reserved for this method, so pass a filter literally named `key` in the hash.
 
-Paths must be relative (`"customer"`, `"order/123"`). A full URL raises `ArgumentError`, because Faraday would otherwise send the request, App ID and Secret included, to that host.
+Paths must be relative (`"customer"`, `"order/123"`): segments of letters, digits, `-` and `_`. Anything else (a full URL, `..`, percent-encoding) raises `Commerce7::Client::InvalidRequestError` before a request is made, because a full URL would otherwise make Faraday send the request, App ID and Secret included, to that host. `fetch` applies the same rule to the id, which often comes from a URL param or webhook. `InvalidRequestError` is a `Client::Error`, so code that already rescues those treats a tampered id like any failed lookup.
 
 ### Named helpers
 

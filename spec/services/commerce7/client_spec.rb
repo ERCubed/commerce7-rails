@@ -116,13 +116,17 @@ RSpec.describe Commerce7::Client do
       expect(client.fetch("customer", "cust-1")).to eq({ "id" => "cust-1" })
     end
 
-    it "URL-encodes the id so it cannot change the path" do
-      stub = stub_request(:get, "https://api.commerce7.com/v1/customer/a%2Fb")
-        .to_return(status: 200, body: {}.to_json, headers: json_headers)
+    # Ids often come from outside (an orderId URL param, a webhook payload),
+    # so only a plain identifier is ever sent.
+    [ "../customer", "a/b", "x%2F..", "order?x=1", "id#frag", "a b", "a\nb", "", nil ].each do |id|
+      it "rejects the id #{id.inspect} before sending anything" do
+        expect { client.fetch("customer", id) }.to raise_error(Commerce7::Client::InvalidRequestError, /plain identifier/)
+        expect(a_request(:any, /.*/)).not_to have_been_made
+      end
+    end
 
-      client.fetch("customer", "a/b")
-
-      expect(stub).to have_been_requested
+    it "raises a Client::Error for a tampered id, so callers that rescue those handle it like a failed lookup" do
+      expect { client.fetch_order("../customer") }.to raise_error(Commerce7::Client::Error)
     end
   end
 
@@ -143,17 +147,38 @@ RSpec.describe Commerce7::Client do
     end
 
     # A full URL would make Faraday send the request, App ID/Secret included,
-    # to that host instead of Commerce7.
-    [ "https://evil.example/steal", "//evil.example/steal", "../order", "order/../customer", "order/./x", "/order", "order?x=1", "order#x", "" ].each do |path|
+    # to that host instead of Commerce7. Percent-encoding is refused too, so
+    # nothing like %2e%2e ("..") can be decoded into another path server-side.
+    HOSTILE_PATHS = [
+      "https://evil.example/steal", "http:evil.example", "//evil.example/steal", "///evil.example", "\\\\evil.example\\x",
+      "/order", "../order", "order/../customer", "order/../../x", "order/./x", ".", "..", "order/..", "order//x",
+      "%2e%2e/v2/x", "order/%2e%2e/%2e%2e/x", "%2F%2Fevil.example", "order%2F..%2F..%2Fx", "%252e%252e/x", "order%00",
+      "order%0d%0aX:%20y", "evil.example", "order@evil.example", "user:pass@evil.example", "@evil.example",
+      "order:8080", "evil.example:443/x", "order?x=1", "order#x", "order;x", "order\nHost: evil", "order\r\nX: y",
+      "order\u0000", "order ", " order", "ｏrder", "order/‮", ""
+    ].freeze
+
+    HOSTILE_PATHS.each do |path|
       it "rejects #{path.inspect} before sending anything" do
-        expect { client.get(path) }.to raise_error(ArgumentError, /must be relative/)
+        expect { client.get(path) }.to raise_error(Commerce7::Client::InvalidRequestError, /must be relative/)
         expect(a_request(:any, /.*/)).not_to have_been_made
       end
     end
 
     it "applies the same check to each and fetch" do
-      expect { client.each("https://evil.example/x").first }.to raise_error(ArgumentError)
-      expect { client.fetch("https://evil.example", "x") }.to raise_error(ArgumentError)
+      expect { client.each("https://evil.example/x").first }.to raise_error(Commerce7::Client::InvalidRequestError)
+      expect { client.fetch("https://evil.example", "x") }.to raise_error(Commerce7::Client::InvalidRequestError)
+    end
+
+    it "never lets an accepted path build a URL outside the Commerce7 API base" do
+      connection = Faraday.new(url: Commerce7::Client::BASE_URL)
+      accepted = [ "customer", "club-membership", "order/abc-123", "customer/cust_1/address", "a" * 500 ]
+
+      accepted.each do |path|
+        expect(path).to match(Commerce7::Client::PATH_FORMAT)
+        expect(connection.build_url(path).to_s).to start_with("https://api.commerce7.com/v1/")
+      end
+      HOSTILE_PATHS.each { |path| expect(path).not_to match(Commerce7::Client::PATH_FORMAT) }
     end
   end
 

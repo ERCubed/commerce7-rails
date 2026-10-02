@@ -15,6 +15,10 @@ module Commerce7
     class AuthenticationError < Error; end
     class RateLimitedError < Error; end
     class ApiError < Error; end
+    # A path or id that isn't safe to send. A Client::Error, so callers that
+    # already rescue those (e.g. around a lookup by an id from a URL) handle a
+    # tampered value like any other failed lookup.
+    class InvalidRequestError < Error; end
 
     # Trailing slash matters: Faraday/URI joins a relative path onto this by
     # RFC 3986 merge rules, so without it "v1" gets treated as a filename and
@@ -22,10 +26,14 @@ module Commerce7
     BASE_URL = "https://api.commerce7.com/v1/"
     PAGE_SIZE = 50
     MAX_RETRIES = 3
-    # A relative API path: letters, digits, -, _, %, and single slashes. Never
-    # a full URL (Faraday would send the request, App ID/Secret included, to
-    # that host instead), and never "." or ".." segments.
-    PATH_FORMAT = %r{\A[A-Za-z0-9][A-Za-z0-9_%-]*(?:/[A-Za-z0-9_%-]+)*\z}
+    # A relative API path: segments of letters, digits, - and _, joined by
+    # single slashes. Never a full URL (Faraday would send the request, App
+    # ID/Secret included, to that host instead), never "." or ".." segments,
+    # and no "%", so nothing percent-encoded (e.g. %2e%2e for "..") can be
+    # decoded into a different path by the server.
+    PATH_FORMAT = %r{\A[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*\z}
+    # A record id, which becomes one path segment. Commerce7 ids are UUIDs.
+    ID_FORMAT = /\A[A-Za-z0-9_-]+\z/
 
     def initialize(tenant, base_url: BASE_URL, sleeper: ->(seconds) { sleep(seconds) })
       @app_id, @app_secret_key = Commerce7.configuration.app_credentials.call
@@ -104,15 +112,21 @@ module Commerce7
     end
 
     # A single record by id from any endpoint: fetch("customer", id) is
-    # GET customer/{id}. The id is URL-encoded.
+    # GET customer/{id}. The id often comes from outside (a URL param, a
+    # webhook), so anything but a plain identifier raises InvalidRequestError
+    # rather than being sent.
     def fetch(path, id)
-      get("#{path}/#{ERB::Util.url_encode(id.to_s)}")
+      id = id.to_s
+      raise InvalidRequestError, "Commerce7 record id must be a plain identifier, got #{id.inspect}" unless id.match?(ID_FORMAT)
+
+      get("#{path}/#{id}")
     end
 
     # Any GET, for endpoints that don't fit `each`/`fetch`. Returns the parsed
     # response body. Read-only on purpose: this client has no POST/PUT/DELETE.
     def get(path, params = {})
-      raise ArgumentError, "Commerce7 API path must be relative, like \"customer\" or \"order/123\", got #{path.inspect}" unless path.to_s.match?(PATH_FORMAT)
+      path = path.to_s # validate and send the same string
+      raise InvalidRequestError, "Commerce7 API path must be relative, like \"customer\" or \"order/123\", got #{path.inspect}" unless path.match?(PATH_FORMAT)
 
       response = with_rate_limit_retry { connection.get(path, params) }
       handle_response(response)
