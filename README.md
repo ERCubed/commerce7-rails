@@ -156,7 +156,30 @@ production:
 
 ```ruby
 client = Commerce7::Client.new(tenant)
-client.each_club_membership { |membership| ... }  # paginates automatically
+```
+
+### Any endpoint
+
+The generic methods reach every read endpoint in Commerce7's API, with pagination, rate-limit retries, and the tenant header handled for you:
+
+```ruby
+client.each("club-membership") { |membership| ... }          # paginates automatically
+client.each("customer", lastName: "Smith") { |customer| ... } # filters pass through as query params
+client.each("customer").first(10)                              # without a block, returns an Enumerator
+client.fetch("customer", customer_id)                          # one record: GET customer/{id}
+client.get("customer/#{customer_id}/address")                  # any other GET, returns the parsed body
+```
+
+`each` reads records from the response key Commerce7 names after the resource: the path's last segment, pluralized and camelCased (`"club-membership"` reads `clubMemberships`). If an endpoint uses a different key, pass `key: "theKey"`. A response without the expected key raises `ApiError` rather than quietly yielding nothing. Filters can be keywords or a hash; `key` is reserved for this method, so pass a filter literally named `key` in the hash.
+
+Paths must be relative (`"customer"`, `"order/123"`). A full URL raises `ArgumentError`, because Faraday would otherwise send the request, App ID and Secret included, to that host.
+
+### Named helpers
+
+These wrap `each`/`fetch` for the resources the apps built on this gem use, with notes on what each record carries:
+
+```ruby
+client.each_club_membership { |membership| ... }  # embeds the customer and club
 client.each_customer { |customer| ... }
 client.each_order { |order| ... }
 client.each_order(orderPaidDate: "gte:2026-01-01") { |order| ... }  # params pass through as filters
@@ -165,7 +188,11 @@ client.each_inventory_location { |location| ... }
 client.fetch_order(order_id)
 ```
 
-Handles pagination, the 100 req/min rate limit (retries on 429 using `Retry-After` when present, exponential backoff otherwise), and raises `Commerce7::Client::AuthenticationError` / `RateLimitedError` / `ApiError` as appropriate.
+### Read only
+
+The client only sends GET requests. There's deliberately no POST/PUT/DELETE: an app that writes to Commerce7 needs broader API permissions, changes its answer on Commerce7's security review, and needs care around retries and audit logging. Writes will be added when an app actually needs them.
+
+Every call handles the 100 req/min rate limit (retries on 429 using `Retry-After` when present, exponential backoff otherwise), and raises `Commerce7::Client::AuthenticationError` / `RateLimitedError` / `ApiError` as appropriate.
 
 `Commerce7::AccountClient` validates the staff JWT Commerce7 passes into an App Extension iframe — used internally by `Commerce7::ExtensionController`, but available directly if you need it.
 

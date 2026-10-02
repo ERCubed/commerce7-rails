@@ -62,6 +62,101 @@ RSpec.describe Commerce7::Client do
     end
   end
 
+  describe "#each (generic)" do
+    # The response key is inferred from the path: last segment, pluralized, camelCased.
+    describe "inferring the response key" do
+      include_examples "a Commerce7 paginated resource", method: :each, args: [ "customer" ], path: "/customer", response_key: "customers"
+      include_examples "a Commerce7 paginated resource", method: :each, args: [ "club-membership" ], path: "/club-membership", response_key: "clubMemberships"
+      include_examples "a Commerce7 paginated resource", method: :each, args: [ "inventory-location" ], path: "/inventory-location", response_key: "inventoryLocations"
+    end
+
+    it "passes params through as query filters alongside pagination" do
+      stub = stub_request(:get, "https://api.commerce7.com/v1/customer")
+        .with(query: { "lastName" => "Smith", "page" => "1", "limit" => Commerce7::Client::PAGE_SIZE.to_s })
+        .to_return(status: 200, body: { "customers" => [] }.to_json, headers: json_headers)
+
+      client.each("customer", lastName: "Smith") { |record| record }
+
+      expect(stub).to have_been_requested
+    end
+
+    it "also accepts filters as a hash, which is how to pass one named key" do
+      stub = stub_request(:get, "https://api.commerce7.com/v1/customer")
+        .with(query: hash_including("key" => "k", "lastName" => "Smith", "page" => "1"))
+        .to_return(status: 200, body: { "customers" => [] }.to_json, headers: json_headers)
+
+      client.each("customer", { "key" => "k" }, lastName: "Smith") { |record| record }
+
+      expect(stub).to have_been_requested
+    end
+
+    it "reads records from an explicit key: when given" do
+      stub_request(:get, "https://api.commerce7.com/v1/some-endpoint")
+        .with(query: hash_including("page" => "1"))
+        .to_return(status: 200, body: { "unusualKey" => [ { "id" => "a" } ] }.to_json, headers: json_headers)
+
+      expect(client.each("some-endpoint", key: "unusualKey").to_a).to eq([ { "id" => "a" } ])
+    end
+
+    it "raises ApiError, naming the keys present, when the response lacks the expected key" do
+      stub_request(:get, "https://api.commerce7.com/v1/some-endpoint")
+        .with(query: hash_including("page" => "1"))
+        .to_return(status: 200, body: { "somethingElse" => [], "total" => 0 }.to_json, headers: json_headers)
+
+      expect { client.each("some-endpoint").to_a }
+        .to raise_error(Commerce7::Client::ApiError, /"someEndpoints".*somethingElse, total/)
+    end
+  end
+
+  describe "#fetch" do
+    it "GETs path/id and returns the record" do
+      stub_request(:get, "https://api.commerce7.com/v1/customer/cust-1")
+        .to_return(status: 200, body: { "id" => "cust-1" }.to_json, headers: json_headers)
+
+      expect(client.fetch("customer", "cust-1")).to eq({ "id" => "cust-1" })
+    end
+
+    it "URL-encodes the id so it cannot change the path" do
+      stub = stub_request(:get, "https://api.commerce7.com/v1/customer/a%2Fb")
+        .to_return(status: 200, body: {}.to_json, headers: json_headers)
+
+      client.fetch("customer", "a/b")
+
+      expect(stub).to have_been_requested
+    end
+  end
+
+  describe "#get" do
+    it "returns the parsed body for any relative path, with params" do
+      stub_request(:get, "https://api.commerce7.com/v1/customer/cust-1/address")
+        .with(query: { "x" => "1" })
+        .to_return(status: 200, body: { "addresses" => [] }.to_json, headers: json_headers)
+
+      expect(client.get("customer/cust-1/address", x: 1)).to eq({ "addresses" => [] })
+    end
+
+    it "retries on 429 like every other call" do
+      stub_request(:get, "https://api.commerce7.com/v1/tag")
+        .to_return({ status: 429, headers: { "Retry-After" => "1" } }, { status: 200, body: { "tags" => [] }.to_json, headers: json_headers })
+
+      expect(client.get("tag")).to eq({ "tags" => [] })
+    end
+
+    # A full URL would make Faraday send the request, App ID/Secret included,
+    # to that host instead of Commerce7.
+    [ "https://evil.example/steal", "//evil.example/steal", "../order", "order/../customer", "order/./x", "/order", "order?x=1", "order#x", "" ].each do |path|
+      it "rejects #{path.inspect} before sending anything" do
+        expect { client.get(path) }.to raise_error(ArgumentError, /must be relative/)
+        expect(a_request(:any, /.*/)).not_to have_been_made
+      end
+    end
+
+    it "applies the same check to each and fetch" do
+      expect { client.each("https://evil.example/x").first }.to raise_error(ArgumentError)
+      expect { client.fetch("https://evil.example", "x") }.to raise_error(ArgumentError)
+    end
+  end
+
   describe "authentication" do
     it "sends HTTP Basic auth (from app_credentials) and the tenant header" do
       stub = stub_request(:get, "https://api.commerce7.com/v1/customer")

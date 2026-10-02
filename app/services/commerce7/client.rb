@@ -22,6 +22,10 @@ module Commerce7
     BASE_URL = "https://api.commerce7.com/v1/"
     PAGE_SIZE = 50
     MAX_RETRIES = 3
+    # A relative API path: letters, digits, -, _, %, and single slashes. Never
+    # a full URL (Faraday would send the request, App ID/Secret included, to
+    # that host instead), and never "." or ".." segments.
+    PATH_FORMAT = %r{\A[A-Za-z0-9][A-Za-z0-9_%-]*(?:/[A-Za-z0-9_%-]+)*\z}
 
     def initialize(tenant, base_url: BASE_URL, sleeper: ->(seconds) { sleep(seconds) })
       @app_id, @app_secret_key = Commerce7.configuration.app_credentials.call
@@ -76,18 +80,58 @@ module Commerce7
     # orderId from Commerce7. Returns the order hash, which carries a
     # top-level customerId same as club-membership's.
     def fetch_order(order_id)
-      get("order/#{order_id}", {})
+      fetch("order", order_id)
+    end
+
+    # Generic read access to any Commerce7 list endpoint, with the same
+    # pagination and rate-limit handling as the named methods above:
+    #
+    #   client.each("club-membership") { |membership| ... }
+    #   client.each("customer", lastName: "Smith") { |customer| ... }
+    #   client.each("some-endpoint", key: "unusualKey") { |record| ... }
+    #
+    # Records are read from the response key Commerce7 names after the
+    # resource: the path's last segment, pluralized and camelCased
+    # ("club-membership" => "clubMemberships"). Pass `key:` when an endpoint
+    # differs. A response without that key raises ApiError rather than
+    # quietly yielding nothing. Filters can be keywords (as above) or a hash;
+    # `key` is the one name reserved for this method, so pass a filter that
+    # happens to be called "key" in the params hash.
+    def each(path, params = {}, key: nil, **filters, &block)
+      return enum_for(:each, path, params, key: key, **filters) unless block_given?
+
+      each_record(path, key || response_key_for(path), params.merge(filters), require_key: true, &block)
+    end
+
+    # A single record by id from any endpoint: fetch("customer", id) is
+    # GET customer/{id}. The id is URL-encoded.
+    def fetch(path, id)
+      get("#{path}/#{ERB::Util.url_encode(id.to_s)}")
+    end
+
+    # Any GET, for endpoints that don't fit `each`/`fetch`. Returns the parsed
+    # response body. Read-only on purpose: this client has no POST/PUT/DELETE.
+    def get(path, params = {})
+      raise ArgumentError, "Commerce7 API path must be relative, like \"customer\" or \"order/123\", got #{path.inspect}" unless path.to_s.match?(PATH_FORMAT)
+
+      response = with_rate_limit_retry { connection.get(path, params) }
+      handle_response(response)
     end
 
     private
 
     attr_reader :tenant, :base_url, :sleeper
 
-    def each_record(path, response_key, params = {})
+    def each_record(path, response_key, params = {}, require_key: false)
       page = 1
 
       loop do
-        records = get(path, params.merge(page: page, limit: PAGE_SIZE))[response_key] || []
+        body = get(path, params.merge(page: page, limit: PAGE_SIZE))
+        if require_key && !body.key?(response_key)
+          raise ApiError, "Commerce7 response for #{path.inspect} has no #{response_key.inspect} key (keys: #{body.keys.join(', ')}); pass key: to Client#each"
+        end
+
+        records = body[response_key] || []
         records.each { |record| yield record }
 
         break if records.size < PAGE_SIZE
@@ -96,9 +140,8 @@ module Commerce7
       end
     end
 
-    def get(path, params)
-      response = with_rate_limit_retry { connection.get(path, params) }
-      handle_response(response)
+    def response_key_for(path)
+      path.split("/").last.tr("-", "_").pluralize.camelize(:lower)
     end
 
     def with_rate_limit_retry
