@@ -1,4 +1,4 @@
-RSpec.shared_examples "a Commerce7 paginated resource" do |method:, path:, response_key:|
+RSpec.shared_examples "a Commerce7 paginated resource" do |method:, path:, response_key:, args: []|
   let(:full_page) { Array.new(Commerce7::Client::PAGE_SIZE) { |i| { "id" => "rec-#{i}" } } }
 
   it "yields each record across all pages" do
@@ -10,7 +10,7 @@ RSpec.shared_examples "a Commerce7 paginated resource" do |method:, path:, respo
       .to_return(status: 200, body: { response_key => [ { "id" => "last" } ] }.to_json, headers: json_headers)
 
     results = []
-    client.public_send(method) { |record| results << record }
+    client.public_send(method, *args) { |record| results << record }
 
     expect(results.size).to eq(Commerce7::Client::PAGE_SIZE + 1)
     expect(results.last).to eq({ "id" => "last" })
@@ -21,7 +21,7 @@ RSpec.shared_examples "a Commerce7 paginated resource" do |method:, path:, respo
       .with(query: hash_including("page" => "1"))
       .to_return(status: 200, body: { response_key => [ { "id" => "only" } ] }.to_json, headers: json_headers)
 
-    enum = client.public_send(method)
+    enum = client.public_send(method, *args)
 
     expect(enum).to be_an(Enumerator)
     expect(enum.to_a).to eq([ { "id" => "only" } ])

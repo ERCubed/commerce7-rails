@@ -19,4 +19,37 @@ RSpec.describe Commerce7::Configuration do
   it "defaults audit to a no-op" do
     expect { configuration.audit.call(event_type: "x", success: true) }.not_to raise_error
   end
+  describe "allowed_resources" do
+    it "defaults to nil, which allows every resource" do
+      expect(configuration.allowed_resources).to be_nil
+      expect(configuration.resource_allowed?("anything")).to be true
+    end
+
+    it "allows only the listed resources once set" do
+      configuration.allowed_resources = %w[order club-membership]
+
+      expect(configuration.resource_allowed?("order")).to be true
+      expect(configuration.resource_allowed?("club-membership")).to be true
+      expect(configuration.resource_allowed?("customer")).to be false
+    end
+
+    it "allows nothing when set to an empty list" do
+      configuration.allowed_resources = []
+
+      expect(configuration.resource_allowed?("order")).to be false
+    end
+
+    it "accepts symbols and a single name, and freezes the list" do
+      configuration.allowed_resources = :order
+
+      expect(configuration.allowed_resources).to eq([ "order" ])
+      expect(configuration.allowed_resources).to be_frozen
+    end
+
+    [ "order/123", "", "https://evil.example", "../order", "order " ].each do |entry|
+      it "rejects #{entry.inspect}, so a typo fails at boot rather than on the first request" do
+        expect { configuration.allowed_resources = [ entry ] }.to raise_error(ArgumentError, /bare resource names/)
+      end
+    end
+  end
 end

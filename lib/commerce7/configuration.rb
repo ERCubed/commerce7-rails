@@ -28,6 +28,30 @@ module Commerce7
     # land in the same trail as the rest of the app's.
     attr_accessor :audit
 
+    # The Commerce7 API resources this app may read, e.g.
+    # %w[club-membership order customer]: the first segment of an API path
+    # ("order" in "order/123"). Commerce7::Client refuses any other resource
+    # before sending a request, so an app can only reach what it declares,
+    # and this list should match the scopes registered for the app in
+    # Commerce7's Developer Center. nil (the default) allows every resource;
+    # [] allows none.
+    attr_reader :allowed_resources
+
+    def allowed_resources=(resources)
+      @allowed_resources = resources.nil? ? nil : Array(resources).map do |resource|
+        resource = resource.to_s
+        unless resource.match?(/\A[A-Za-z0-9_-]+\z/)
+          raise ArgumentError, "Commerce7 allowed_resources entries are bare resource names like \"order\", got #{resource.inspect}"
+        end
+
+        resource
+      end.freeze
+    end
+
+    def resource_allowed?(resource)
+      allowed_resources.nil? || allowed_resources.include?(resource.to_s)
+    end
+
     def initialize
       @tenant_class_name = "Tenant"
       @webhook_credentials = -> { raise_unconfigured!(:webhook_credentials) }

@@ -19,6 +19,12 @@ Commerce7.configure do |c|
   # webhook-driven mutations, the post-uninstall purge) land in the same
   # trail as the rest of the app's. See the README's "Audit trail" section.
   c.audit = ->(**kwargs) { AuditEvent.record!(**kwargs) }
+
+  # The Commerce7 API resources this app reads, e.g. %w[club-membership order].
+  # Commerce7::Client refuses anything else. Keep it matching the scopes
+  # registered for this app in the Developer Center. Starts empty, so add
+  # each resource deliberately as the app starts using it.
+  c.allowed_resources = []
 end
 
 # Runs once, after a tenant activates (first install or a reinstall) —
