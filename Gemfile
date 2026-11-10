@@ -5,7 +5,7 @@ source "https://rubygems.org"
 gemspec
 
 group :development, :test do
-  gem "sqlite3", ">= 2.1"
+  gem "pg", "~> 1.6"
   gem "combustion", "~> 1.5"
   gem "rspec-rails"
   gem "webmock"

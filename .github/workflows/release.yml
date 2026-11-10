@@ -26,11 +26,23 @@ jobs:
   release:
     runs-on: ubuntu-latest
     environment: release
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: --health-cmd="pg_isready" --health-interval=10s --health-timeout=5s --health-retries=3
     permissions:
       contents: read
       id-token: write
     env:
       TAG: ${{ inputs.tag || github.ref_name }}
+      PGHOST: localhost
+      PGUSER: postgres
+      PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v7
         with:

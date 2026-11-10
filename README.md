@@ -231,4 +231,4 @@ bundle exec brakeman
 bundle exec bundler-audit --update
 ```
 
-Tests run against a minimal dummy Rails app (via [combustion](https://github.com/pat/combustion)) at `spec/dummy`.
+Tests run against a minimal dummy Rails app (via [combustion](https://github.com/pat/combustion)) at `spec/dummy`, backed by PostgreSQL to match the apps that use this gem. The specs need a local Postgres server; they create and reset a `commerce7_rails_test` database themselves. Set `PGHOST`/`PGUSER`/`PGPASSWORD` if your server isn't on the default socket.

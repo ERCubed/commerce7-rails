@@ -3,7 +3,7 @@ ActiveRecord::Schema.define do
     t.string :commerce7_tenant_id, null: false
     t.datetime :activated_at
     t.datetime :deactivated_at
-    t.json :raw_activation_payload, default: {}
+    t.jsonb :raw_activation_payload, default: {}, null: false
 
     t.timestamps
   end
@@ -26,7 +26,7 @@ ActiveRecord::Schema.define do
     t.string :actor
     t.string :commerce7_tenant_id
     t.string :origin_ip
-    t.json :metadata, default: {}
+    t.jsonb :metadata, default: {}, null: false
 
     t.timestamps
   end
