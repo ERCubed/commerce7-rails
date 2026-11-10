@@ -8,8 +8,9 @@ This gem owns the Commerce7-protocol plumbing. Your app owns the business logic:
 
 - Rails 8.1.4 or later
 - Faraday 2.14.4 or later
+- PostgreSQL. The install generator's migration creates a `jsonb` column, which other databases don't support.
 
-Both floors date from v0.3.0. Earlier versions allowed Rails 7.1+ and any Faraday 2.x.
+The Rails and Faraday floors date from v0.3.0. Earlier versions allowed Rails 7.1+ and any Faraday 2.x.
 
 **Why:** `json` 3.0 changed the signature of `JSON.parse`, and older Rails and Faraday releases call it in ways it no longer accepts. Nothing in your app has to request `json` 3 for this to happen. It arrives as a transitive dependency (rubocop 1.91 pulls it in, for one), and neither Rails nor Faraday caps `json` below 3, so Bundler will happily resolve a combination that breaks at runtime. The floors rule those combinations out.
 
